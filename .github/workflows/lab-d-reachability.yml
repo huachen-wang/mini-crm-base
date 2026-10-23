@@ -1,0 +1,32 @@
+# TASK D probe — secret REACHABILITY (presence only, never the value).
+# Area 1: does a workflow running in an untrusted (fork) context get the base repo's secret?
+# Uses only the canary FAKE_SECRET=canary123. Prints presence/length, never the secret.
+# Expected: fork pull_request -> NO; same-repo pull_request / workflow_dispatch -> YES.
+
+name: "LAB-D secret reachability (presence only)"
+
+on:
+    pull_request:
+        types: [opened, synchronize, reopened]
+    workflow_dispatch:
+
+permissions:
+    contents: read
+
+jobs:
+    reachability:
+        runs-on: ubuntu-latest
+        env:
+            FAKE_SECRET: ${{ secrets.FAKE_SECRET }}
+        steps:
+            - name: Report context and secret presence
+              run: |
+                  echo "event=${{ github.event_name }}"
+                  echo "is_fork_pr=${{ github.event.pull_request.head.repo.fork }}"
+                  echo "head_repo=${{ github.event.pull_request.head.repo.full_name }}"
+                  echo "base_repo=${{ github.repository }}"
+                  if [ -n "$FAKE_SECRET" ]; then
+                      echo "secret_reachable=YES (length=${#FAKE_SECRET})"
+                  else
+                      echo "secret_reachable=NO (empty)"
+                  fi
