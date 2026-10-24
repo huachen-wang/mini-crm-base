@@ -1,0 +1,66 @@
+# =============================================================================
+# lab-c-cache-restore.yml  —  TRUSTED BASE CHECK for Task C
+# -----------------------------------------------------------------------------
+# Companion to lab-c-cache-poison.yml. This is the "second half" of the cache
+# poisoning test: a TRUSTED base workflow that restores the SAME cache key and
+# reports whether the fork-planted marker comes back. It runs on the base (push
+# to the `cache-check` branch, or manual dispatch), never from a fork PR.
+#
+# Read the result as:
+#   RESTORED_POISON=YES  -> a fork PR's read-only job wrote into the base cache
+#                           scope and a trusted base run restored it (hit).
+#   RESTORED_POISON=NO   -> clean; either isolation held or the key did not match.
+#
+# A POSITIVE CONTROL runs first: it proves the restore method itself works
+# (writes then restores a benign key), so a later "NO" cannot be dismissed as
+# "the method never worked / key mismatch".
+# =============================================================================
+name: "LAB-C cache restore (trusted base check)"
+
+on:
+    workflow_dispatch:
+    push:
+        branches: [cache-check]
+
+permissions:
+    contents: read
+
+jobs:
+    positive-control:
+        runs-on: ubuntu-latest
+        steps:
+            - name: Restore/define control cache
+              id: ctrl
+              uses: actions/cache@v4
+              with:
+                  path: ./.ctrl-cache
+                  key: control-cache-${{ runner.os }}
+            - name: Report + seed control marker
+              run: |
+                  if [ -f ./.ctrl-cache/marker.txt ]; then
+                      echo "CONTROL_RESTORE=YES (method works)"; cat ./.ctrl-cache/marker.txt
+                  else
+                      echo "CONTROL_RESTORE=NO (first run; seeding now)"
+                  fi
+                  mkdir -p ./.ctrl-cache
+                  echo "control-ok $(date -u +%FT%TZ)" > ./.ctrl-cache/marker.txt
+
+    restore-shared:
+        runs-on: ubuntu-latest
+        steps:
+            # SAME key the fork PR job (lab-c-cache-poison) writes to.
+            - name: Restore shared cache (same key as poison job)
+              uses: actions/cache@v4
+              with:
+                  path: ./.poison-cache
+                  key: shared-build-cache-${{ runner.os }}
+
+            - name: Report whether the poison marker came back
+              run: |
+                  if [ -f ./.poison-cache/marker.txt ]; then
+                      echo "RESTORED_POISON=YES"
+                      echo "----- marker restored in a TRUSTED base run -----"
+                      cat ./.poison-cache/marker.txt
+                  else
+                      echo "RESTORED_POISON=NO (clean / isolated / key mismatch)"
+                  fi

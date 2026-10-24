@@ -38,6 +38,10 @@ jobs:
               uses: actions/checkout@v4
               with:
                   ref: ${{ github.event.pull_request.head.sha }}
+                  # Author opt-out of the default fork-PR checkout guard. This is a
+                  # deliberately weakened experimental setting, on our own test repo
+                  # only, to reach the cache-write step. Remove after the experiment.
+                  allow-unsafe-pr-checkout: true
 
             # A shared cache key that a trusted base workflow would also use.
             - name: 💾 Restore/define shared cache
@@ -51,5 +55,7 @@ jobs:
             - name: ⚠️ Plant marker in cache
               run: |
                   mkdir -p ./.poison-cache
-                  echo "POISONED_BY_FORK=canary123 at $(date -u)" > ./.poison-cache/marker.txt
+                  MARKER="POISONED_BY_FORK canary123 run=${{ github.run_id }} event=${{ github.event_name }} head=${{ github.event.pull_request.head.repo.full_name }} at=$(date -u +%FT%TZ)"
+                  echo "$MARKER" > ./.poison-cache/marker.txt
+                  echo "wrote marker from a contents:read job triggered by a fork PR:"
                   cat ./.poison-cache/marker.txt
